@@ -16,6 +16,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.swing.SwingUtilities;
 
 import mmcorej.org.json.JSONException;
 import mmcorej.org.json.JSONObject;
@@ -151,6 +152,25 @@ public class ZMQServer extends ZMQSocketWrapper {
       if (executor_ != null) {
          executor_.shutdownNow();
          socket_.close();
+      }
+   }
+   // http://kotek.net/blog/swingutilities.invokeandwait_with_return_value
+   public static void invokeandwait(final Callable<E> r) {
+      final AtomicReference<E> ref = new AtomicReference<>();
+      final AtomicReference<Exception> except = New AtomicReference<>();
+      SwingUtilities.onEDTWait(new Runnable() {
+         public void run() {
+            try {
+               ref.set(r.call());
+            } catch (Exception e) {
+               except.set(e);
+            }
+         }});
+      if(except.get() != null) {
+         throw new RuntimeException(except.get());
+      }
+      else {
+         return ref.get();
       }
    }
 
@@ -385,7 +405,13 @@ public class ZMQServer extends ZMQSocketWrapper {
       Object result;
       try {
          matchingMethod.setAccessible(true); //this is needed to call public methods on private classes
-         result = matchingMethod.invoke(obj, argVals);
+         // result = matchingMethod.invoke(obj, argVals);
+         result = invokeandwait(new Callable<Object>() {
+            public Object call() throws Exception {
+               return matchingMethod.invoke(obj, argVals);
+            }
+         });
+
       } catch (InvocationTargetException ex) {
          ex.printStackTrace();
          result = ex.getCause();
